@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BloodCoin – Donate Blood, Earn Rewards</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+  // EmailJS init — replace with your EmailJS Public Key
+  (function(){
+    if(typeof emailjs !== 'undefined') emailjs.init({ publicKey: "ysIfME-EOp4rT2EtT" });
+  })();
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --red:#C0392B;--rl:#FADBD8;--rd:#96281B;
+  --gold:#D4AC0D;--gl:#FEF9E7;--gd:#9A7D0A;
+  --bg:#F7F7F5;--card:#fff;--text:#1a1a1a;--muted:#666;--border:#e5e5e5;
+  --green:#1a8a4a;--grl:#eafaf1;--blue:#1a5fa8;--bl:#eaf2ff;--r:13px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+h1,h2,h3,h4{font-family:'Syne',sans-serif;line-height:1.2}
+#loading-screen{position:fixed;inset:0;background:var(--red);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#fff}
+#loading-screen .logo{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;margin-top:1rem}
+#loading-screen p{opacity:.8;font-size:14px;margin-top:.5rem}
+.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* AUTH */
+#auth-screen{min-height:100vh;display:none;align-items:center;justify-content:center;background:linear-gradient(135deg,#96281B,#C0392B 55%,#E74C3C);padding:1rem}
+.abox{background:#fff;border-radius:22px;padding:2.2rem;width:100%;max-width:430px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.auth-logo{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:1.2rem}
+.auth-logo .drop{width:38px;height:38px;background:var(--red);border-radius:50% 50% 50% 0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px}
+.auth-logo span{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;color:var(--red)}
+.atabs{display:grid;grid-template-columns:1fr 1fr;background:#f5f5f5;border-radius:9px;padding:3px;margin-bottom:1.3rem}
+.atab{padding:9px;border:none;background:transparent;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;border-radius:7px;transition:.2s;color:var(--muted)}
+.atab.active{background:#fff;color:var(--red);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.aform{display:none}.aform.active{display:block}
+.fg{margin-bottom:.9rem}
+.fg label{display:block;font-size:12px;font-weight:500;margin-bottom:4px}
+.fg input,.fg select{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s}
+.fg input:focus,.fg select:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.08)}
+.fgrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.blood-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:5px}
+.bb{padding:8px;border:1px solid var(--border);border-radius:7px;cursor:pointer;background:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;text-align:center;transition:.2s}
+.bb:hover{border-color:var(--red);color:var(--red)}.bb.sel{background:var(--red);border-color:var(--red);color:#fff}
+.avail-row{display:flex;align-items:center;gap:10px;background:var(--grl);border:1px solid #a8e6c0;border-radius:9px;padding:11px;margin-bottom:.9rem;cursor:pointer}
+.tgl{width:46px;height:24px;background:#ccc;border-radius:12px;position:relative;cursor:pointer;transition:.3s;flex-shrink:0}
+.tgl.on{background:var(--green)}
+.tgl::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tgl.on::after{left:24px}
+.abtn{width:100%;padding:12px;background:var(--red);color:#fff;border:none;border-radius:9px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;transition:.2s;margin-top:.4rem}
+.abtn:hover{background:var(--rd)}.abtn:disabled{background:#ccc;cursor:not-allowed}
+.aswitch{text-align:center;margin-top:.9rem;font-size:13px;color:var(--muted)}
+.aswitch a{color:var(--red);cursor:pointer;font-weight:600}
+.err-msg{background:#fff0ee;border:1px solid var(--rl);color:var(--red);border-radius:7px;padding:8px 12px;font-size:13px;margin-bottom:.8rem;display:none}
+
+/* APP */
+#app-screen{display:none}
+/* TOP NAV */
+nav{background:#fff;border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:100}
+.nav-logo{display:flex;align-items:center;gap:8px;font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--red);cursor:pointer}
+.nav-logo .drop{width:26px;height:26px;background:var(--red);border-radius:50% 50% 50% 0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px}
+.ntabs{display:flex;gap:2px}
+.nt{padding:6px 12px;border-radius:7px;border:none;background:transparent;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--muted);transition:.2s;white-space:nowrap}
+.nt:hover{background:#f5f5f5;color:var(--text)}.nt.active{background:var(--rl);color:var(--red)}
+.nt.emerg{background:var(--red);color:#fff!important;font-weight:700}.nt.emerg:hover{background:var(--rd)}
+.nav-r{display:flex;align-items:center;gap:8px}
+.nav-coins{display:flex;align-items:center;gap:4px;background:var(--gl);border:1px solid #f0d060;padding:5px 11px;border-radius:14px;font-weight:500;font-size:12px;color:var(--gd)}
+.nav-av{width:30px;height:30px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;cursor:pointer}
+.page{display:none;padding:1.4rem;max-width:1100px;margin:0 auto}.page.active{display:block}
+/* BOTTOM TAB BAR — mobile only */
+#bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);z-index:200;padding:6px 0 8px}
+#bottom-nav .bnt{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;cursor:pointer;padding:4px 2px;color:var(--muted);font-size:9px;font-weight:500;font-family:'DM Sans',sans-serif;transition:.2s}
+#bottom-nav .bnt .bico{font-size:20px;line-height:1}
+#bottom-nav .bnt.active{color:var(--red)}
+#bottom-nav .bnt.bemerg{color:#fff;background:var(--red);border-radius:12px;padding:4px 10px;margin:0 4px}
+#bottom-nav .bnt.bemerg .bico{font-size:18px}
+
+/* HOME */
+.hero{background:linear-gradient(135deg,#96281B,#C0392B 50%,#E74C3C);border-radius:18px;padding:2.5rem 2rem;color:#fff;display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:center;margin-bottom:1.8rem}
+.hero h1{font-size:2.4rem;font-weight:800;margin-bottom:.7rem;line-height:1.1}
+.hero p{font-size:.95rem;opacity:.9;margin-bottom:1.1rem;font-weight:300}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;transition:.2s}
+.btn-w{background:#fff;color:var(--red)}.btn-w:hover{background:#f5f5f5}
+.btn-o{background:transparent;border:2px solid rgba(255,255,255,.7);color:#fff}.btn-o:hover{background:rgba(255,255,255,.1)}
+.hstats{display:flex;flex-direction:column;gap:10px}
+.hstat{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:14px 18px}
+.hstat .n{font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800}
+.hstat .l{font-size:11px;opacity:.8;margin-top:2px}
+.st{font-size:1.4rem;font-weight:800;margin-bottom:.3rem}.ss{color:var(--muted);margin-bottom:1.1rem;font-size:13px}
+.sgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.8rem}
+.scard{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem;text-align:center;position:relative}
+.snum{width:30px;height:30px;background:var(--red);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;margin:0 auto 8px}
+.scard .ico{font-size:1.6rem;margin-bottom:8px}.scard h4{font-size:13px;margin-bottom:4px}.scard p{font-size:11px;color:var(--muted)}
+.sarr{position:absolute;right:-7px;top:50%;transform:translateY(-50%);color:var(--red);font-size:15px;z-index:1}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.8rem}
+.fcard{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem}
+.fi{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px}
+.fi.r{background:var(--rl)}.fi.g{background:var(--gl)}.fi.gr{background:var(--grl)}.fi.b{background:var(--bl)}
+.fcard h4{font-size:14px;margin-bottom:4px}.fcard p{font-size:12px;color:var(--muted)}
+
+/* EMERGENCY */
+.ebanner{background:linear-gradient(135deg,#96281B,#C0392B);border-radius:14px;padding:1.3rem 1.6rem;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:1.3rem}
+.ebanner h2{font-size:1.3rem;margin-bottom:.2rem}.ebanner p{font-size:12px;opacity:.85}
+.pulse{width:12px;height:12px;background:#fff;border-radius:50%;position:relative;flex-shrink:0}
+.pulse::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:2px solid rgba(255,255,255,.4);animation:pulse 1.5s infinite}
+@keyframes pulse{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}
+.sbar{display:flex;gap:8px;margin-bottom:1.1rem;flex-wrap:wrap}
+.sbar input,.sbar select{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;flex:1;min-width:130px}
+.sbar input:focus,.sbar select:focus{border-color:var(--red)}
+.sbtn{padding:9px 18px;background:var(--red);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:13px}
+.sbtn:hover{background:var(--rd)}
+.elayout{display:grid;grid-template-columns:1fr 340px;gap:14px}
+.donor-list{display:flex;flex-direction:column;gap:8px;max-height:500px;overflow-y:auto;padding-right:2px}
+.donor-list::-webkit-scrollbar{width:4px}.donor-list::-webkit-scrollbar-track{background:#f0f0f0;border-radius:4px}.donor-list::-webkit-scrollbar-thumb{background:#ccc;border-radius:4px}
+.dc{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:.9rem;cursor:pointer;transition:.2s}
+.dc:hover{box-shadow:0 2px 12px rgba(0,0,0,.08);transform:translateY(-1px)}.dc.hl{border-color:var(--red);box-shadow:0 0 0 2px var(--rl)}
+.dc-top{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+.dc-av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;flex-shrink:0}
+.dc-av.av{background:var(--rl);color:var(--red)}.dc-av.bz{background:#f0f0f0;color:#888}
+.dc-name{font-size:13px;font-weight:600}.dc-loc{font-size:11px;color:var(--muted)}
+.dbadges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.badge{display:inline-flex;align-items:center;gap:2px;font-size:10px;padding:2px 7px;border-radius:12px;font-weight:500}
+.badge.bl{background:var(--rl);color:var(--red)}.badge.av{background:var(--grl);color:var(--green)}.badge.bz{background:#f0f0f0;color:#888}.badge.gold{background:var(--gl);color:var(--gd)}.badge.dist{background:var(--bl);color:var(--blue)}
+.cbtn{width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:12px;transition:.2s}
+.cbtn:hover{background:var(--rd)}.cbtn.off{background:#e0e0e0;color:#888;cursor:not-allowed}
+.acount{background:var(--rl);border:1px solid #f0c0ba;border-radius:9px;padding:9px 13px;text-align:center;margin-bottom:1rem;font-size:13px;font-weight:500;color:var(--red)}
+.map-area{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:460px}
+#real-map{width:100%;height:460px;z-index:1;border-radius:var(--r)}
+.leg{display:flex;align-items:center;gap:4px}.ldot{width:9px;height:9px;border-radius:50%}
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--muted)}
+.empty-state .eico{font-size:3rem;margin-bottom:.8rem}.empty-state h4{font-size:15px;margin-bottom:.4rem;color:var(--text)}.empty-state p{font-size:13px}
+
+/* DASHBOARD */
+.dgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.3rem}
+.mc{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1rem}
+.ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.mv{font-family:'Syne',sans-serif;font-size:1.7rem;font-weight:700}
+.mv.red{color:var(--red)}.mv.gold{color:var(--gd)}.mv.grn{color:var(--green)}
+.mbadge{display:inline-block;font-size:9px;padding:2px 6px;border-radius:10px;margin-top:4px}
+.mbg{background:var(--grl);color:var(--green)}.mbr{background:var(--rl);color:var(--red)}
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.2rem}
+.ct{font-size:14px;font-weight:700;margin-bottom:.9rem;display:flex;align-items:center;justify-content:space-between}
+.sa{font-size:11px;color:var(--red);cursor:pointer}
+.drow{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:1.3rem}
+.di{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}.di:last-child{border:none}
+.dic{width:34px;height:34px;background:var(--rl);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.dn2{font-size:12px;font-weight:500}.dd{font-size:10px;color:var(--muted)}.dco{font-family:'Syne',sans-serif;font-weight:700;color:var(--gd);font-size:13px}
+.cbal{background:linear-gradient(135deg,#D4AC0D,#F1C40F);border-radius:var(--r);padding:1.1rem;color:#fff;margin-bottom:10px}
+.cbal .cl{font-size:11px;opacity:.85}.cbal .ca{font-family:'Syne',sans-serif;font-size:2.1rem;font-weight:800}
+.cbal p{font-size:11px;opacity:.8;margin-top:3px}
+.avbar{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.1rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem}
+.avbar h4{font-size:14px;margin-bottom:2px}.avbar p{font-size:11px;color:var(--muted)}
+.lbi{display:flex;align-items:center;gap:9px;padding:8px;border-radius:8px;margin-bottom:5px}
+.lbi.top{background:var(--gl);border:1px solid #f0d060}.lbi.me{background:var(--rl);border:1px solid #f0c0ba}
+.lbr{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;width:18px;text-align:center}
+.lbav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;background:var(--rl);color:var(--red);flex-shrink:0}
+.lbn{flex:1;font-size:12px;font-weight:500}.lbc{font-family:'Syne',sans-serif;font-weight:700;color:var(--gd);font-size:12px}
+
+/* REWARDS */
+.rwgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.3rem}
+.rwc{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:.2s}
+.rwc:hover{box-shadow:0 2px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
+.rwh{padding:1rem;border-bottom:1px solid var(--border)}.rt{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:3px;display:inline-block;margin-bottom:6px}
+.rt.h{background:var(--rl);color:var(--red)}.rt.l{background:var(--bl);color:var(--blue)}.rt.p{background:var(--grl);color:var(--green)}
+.rwc h4{font-size:13px;margin-bottom:2px}.rwc .ptn{font-size:11px;color:var(--muted)}
+.rwb{padding:1rem}.disc{font-family:'Syne',sans-serif;font-size:1.7rem;font-weight:800;color:var(--red)}
+.cn{font-size:11px;color:var(--muted);margin:2px 0 9px}
+.rbtn{width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:12px;transition:.2s}
+.rbtn:hover{background:var(--rd)}.rbtn:disabled{background:#ccc;cursor:not-allowed}
+
+/* DONATE & PROFILE */
+.form-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.8rem;max-width:560px;margin:0 auto}
+.earn-box{background:var(--gl);border:1px solid #f0d060;border-radius:8px;padding:11px;text-align:center;margin-bottom:1.1rem}
+.earn-box span{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:var(--gd)}
+.sbtn2{width:100%;padding:12px;background:var(--red);color:#fff;border:none;border-radius:9px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;transition:.2s;margin-top:.4rem}
+.sbtn2:hover{background:var(--rd)}.sbtn2:disabled{background:#ccc;cursor:not-allowed}
+.profile-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.8rem;max-width:540px;margin:0 auto}
+.prof-av{width:68px;height:68px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:#fff;margin:0 auto 1rem}
+
+/* MODALS */
+.mbg2{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center}
+.mbg2.open{display:flex}
+.modal{background:#fff;border-radius:18px;padding:1.8rem;max-width:380px;width:92%;text-align:center}
+.modal h3{font-size:1.1rem;margin-bottom:.4rem}.modal p{color:var(--muted);font-size:12px;margin-bottom:.9rem}
+.mcoins{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;color:var(--gd);margin:7px 0}
+.mbtns{display:flex;gap:9px;margin-top:.9rem}
+.mb-c{flex:1;padding:10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:13px}
+.mb-ok{flex:1;padding:10px;border:none;background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:13px}
+.cm{background:#fff;border-radius:18px;padding:1.8rem;max-width:360px;width:92%;text-align:center}
+.cm-av{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:#fff;margin:0 auto 10px}
+.callbtn{width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:7px}
+.msgbtn{width:100%;padding:10px;background:var(--bl);color:var(--blue);border:1px solid var(--blue);border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;margin-bottom:7px}
+.cancelbtn{width:100%;padding:10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:13px}
+
+.toast{position:fixed;bottom:18px;right:18px;background:#1a1a1a;color:#fff;padding:11px 16px;border-radius:11px;font-size:13px;font-weight:500;opacity:0;transform:translateY(8px);transition:.3s;z-index:999;max-width:290px;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+@media(max-width:768px){
+  .hero{grid-template-columns:1fr;padding:1.5rem}.hero h1{font-size:1.8rem}
+  .sgrid,.fgrid,.dgrid,.rwgrid{grid-template-columns:1fr 1fr}
+  .drow,.elayout{grid-template-columns:1fr}
+  .ntabs{display:none}
+  #bottom-nav{display:flex}
+  .page{padding:1rem;padding-bottom:80px}
+  nav{padding:0 1rem}
+  .nav-logo span{font-size:1rem}
+}
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="logo">🩸 BloodCoin</div>
+  <p>Connecting to database...</p>
+</div>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="abox">
+    <div class="auth-logo"><div class="drop">🩸</div><span>BloodCoin</span></div>
+    <p style="text-align:center;color:var(--muted);font-size:12px;margin-bottom:1.1rem">Donate blood · Earn coins · Save on medical bills</p>
+    <div class="atabs">
+      <button class="atab active" onclick="switchTab('login')">Sign In</button>
+      <button class="atab" onclick="switchTab('register')">Register</button>
+    </div>
+    <div class="aform active" id="login-form">
+      <div class="err-msg" id="login-err"></div>
+      <div class="fg"><label>Email</label><input type="email" id="li-email" placeholder="you@email.com"></div>
+      <div class="fg">
+        <label>Password</label>
+        <div style="position:relative">
+          <input type="password" id="li-pass" placeholder="••••••••" style="width:100%;padding-right:40px">
+          <span onclick="togglePwd('li-pass','eye-login')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--muted)" id="eye-login">👁</span>
+        </div>
+      </div>
+      <div style="text-align:right;margin-bottom:.8rem"><a onclick="showForgotPassword()" style="font-size:12px;color:var(--red);cursor:pointer;font-weight:500">Forgot password?</a></div>
+      <button class="abtn" id="login-btn" onclick="doLogin()">Sign In</button>
+      <div class="aswitch">No account? <a onclick="switchTab('register')">Register here</a></div>
+    </div>
+
+    <!-- FORGOT: STEP 1 — Enter Email -->
+    <div class="aform" id="forgot-form">
+      <div style="text-align:center;margin-bottom:1rem">
+        <div style="font-size:2rem;margin-bottom:.3rem">📧</div>
+        <div style="font-size:14px;font-weight:700">Forgot Password?</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">Enter your email — we will send a 4-digit OTP</div>
+      </div>
+      <div class="err-msg" id="forgot-err"></div>
+      <div class="fg"><label>Your Email Address</label><input type="email" id="forgot-email" placeholder="you@email.com"></div>
+      <button class="abtn" id="forgot-btn" onclick="sendOTP()">Send OTP Code</button>
+      <div style="text-align:center;margin-top:.8rem"><a onclick="switchTab('login')" style="font-size:12px;color:var(--red);cursor:pointer;font-weight:500">← Back to Sign In</a></div>
+    </div>
+
+    <!-- FORGOT: STEP 2 — Enter OTP -->
+    <div class="aform" id="otp-form">
+      <div style="text-align:center;margin-bottom:1rem">
+        <div style="font-size:2rem;margin-bottom:.3rem">🔢</div>
+        <div style="font-size:14px;font-weight:700">Enter OTP</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px" id="otp-sent-to">OTP sent to your email</div>
+      </div>
+      <div class="err-msg" id="otp-err"></div>
+      <div class="fg">
+        <label>4-Digit OTP Code</label>
+        <input type="text" id="otp-input" placeholder="e.g. 4829" maxlength="4" style="text-align:center;font-size:1.5rem;font-weight:800;letter-spacing:10px">
+      </div>
+      <div style="text-align:right;margin-bottom:.8rem"><a onclick="sendOTP()" style="font-size:12px;color:var(--red);cursor:pointer;font-weight:500">Resend OTP</a></div>
+      <button class="abtn" id="otp-btn" onclick="verifyOTP()">Verify OTP</button>
+      <div style="text-align:center;margin-top:.8rem"><a onclick="showForgotPassword()" style="font-size:12px;color:var(--red);cursor:pointer;font-weight:500">← Back</a></div>
+    </div>
+
+    <!-- FORGOT: STEP 3 — New Password -->
+    <div class="aform" id="newpass-form">
+      <div style="text-align:center;margin-bottom:1rem">
+        <div style="font-size:2rem;margin-bottom:.3rem">🔐</div>
+        <div style="font-size:14px;font-weight:700">Create New Password</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">OTP verified! Set your new password</div>
+      </div>
+      <div class="err-msg" id="newpass-err"></div>
+      <div class="fg">
+        <label>New Password (min 6 chars)</label>
+        <div style="position:relative">
+          <input type="password" id="new-pass" placeholder="Enter new password" style="width:100%;padding-right:40px">
+          <span onclick="togglePwd('new-pass','eye-new')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--muted)" id="eye-new">👁</span>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Confirm New Password</label>
+        <div style="position:relative">
+          <input type="password" id="confirm-pass" placeholder="Re-enter new password" style="width:100%;padding-right:40px">
+          <span onclick="togglePwd('confirm-pass','eye-conf')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--muted)" id="eye-conf">👁</span>
+        </div>
+      </div>
+      <button class="abtn" id="newpass-btn" onclick="saveNewPassword()">Save New Password</button>
+    </div>
+    <div class="aform" id="register-form">
+      <div class="err-msg" id="reg-err"></div>
+      <div class="fgrow">
+        <div class="fg"><label>First Name *</label><input type="text" id="r-fn" placeholder="Arjun"></div>
+        <div class="fg"><label>Last Name</label><input type="text" id="r-ln" placeholder="Kumar"></div>
+      </div>
+      <div class="fg"><label>Email *</label><input type="email" id="r-email" placeholder="arjun@email.com"></div>
+      <div class="fg"><label>Phone Number</label><input type="tel" id="r-phone" placeholder="+91 98765 43210"></div>
+      <div class="fg">
+        <label>Password * (min 6 chars)</label>
+        <div style="position:relative">
+          <input type="password" id="r-pass" placeholder="Create a password" style="width:100%;padding-right:40px">
+          <span onclick="togglePwd('r-pass','eye-reg')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--muted)" id="eye-reg">👁</span>
+        </div>
+      </div>
+      <div class="fg"><label>City / Area *</label><input type="text" id="r-city" placeholder="e.g. Jubilee Hills, Hyderabad or your city"></div>
+      <div class="fg">
+        <label>Blood Type *</label>
+        <div class="blood-grid">
+          <button class="bb sel" onclick="selBlood(this)">A+</button><button class="bb" onclick="selBlood(this)">A−</button>
+          <button class="bb" onclick="selBlood(this)">B+</button><button class="bb" onclick="selBlood(this)">B−</button>
+          <button class="bb" onclick="selBlood(this)">AB+</button><button class="bb" onclick="selBlood(this)">AB−</button>
+          <button class="bb" onclick="selBlood(this)">O+</button><button class="bb" onclick="selBlood(this)">O−</button>
+        </div>
+      </div>
+      <div class="avail-row" onclick="toggleRegAvail()" id="avail-row">
+        <div class="tgl on" id="reg-tgl"></div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--green)">Available to Donate</div>
+          <div style="font-size:10px;color:var(--muted)">Others can find me in emergencies</div>
+        </div>
+      </div>
+      <button class="abtn" id="reg-btn" onclick="doRegister()">Create Account & Earn 100 Coins 🪙</button>
+      <div class="aswitch">Have an account? <a onclick="switchTab('login')">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <nav>
+    <div class="nav-logo" onclick="goto('home')"><div class="drop">🩸</div>BloodCoin</div>
+    <div class="ntabs">
+      <button class="nt active" onclick="goto('home')" id="tab-home">Home</button>
+      <button class="nt" onclick="goto('dashboard')" id="tab-dashboard">Dashboard</button>
+      <button class="nt" onclick="goto('rewards')" id="tab-rewards">Rewards</button>
+      <button class="nt" onclick="goto('donate')" id="tab-donate">Donate</button>
+      <button class="nt emerg" onclick="goto('emergency')" id="tab-emergency">🚨 Emergency</button>
+      <button class="nt" onclick="goto('admin')" id="tab-admin" style="display:none">🛡️ Admin</button>
+    </div>
+    <div class="nav-r">
+      <div class="nav-coins">🪙 <span id="nav-coins">0</span></div>
+      <div class="nav-av" id="nav-av" onclick="goto('profile')" title="My Profile"><span id="nav-init">?</span></div>
+    </div>
+  </nav>
+
+  <!-- BOTTOM TAB BAR (mobile) -->
+  <div id="bottom-nav">
+    <button class="bnt active" onclick="goto('home')" id="btab-home"><span class="bico">🏠</span>Home</button>
+    <button class="bnt" onclick="goto('dashboard')" id="btab-dashboard"><span class="bico">📊</span>Dashboard</button>
+    <button class="bnt bemerg" onclick="goto('emergency')" id="btab-emergency"><span class="bico">🚨</span>Emergency</button>
+    <button class="bnt" onclick="goto('donate')" id="btab-donate"><span class="bico">🩸</span>Donate</button>
+    <button class="bnt" onclick="goto('profile')" id="btab-profile"><span class="bico">👤</span>Profile</button>
+  </div>
+
+
+  <!-- HOME -->
+  <div class="page active" id="page-home">
+    <div class="hero">
+      <div>
+        <h1>Donate Blood.<br>Earn Rewards.<br>Save Lives.</h1>
+        <p>Every donation earns BloodCoins — redeemable for discounts on hospital bills, lab tests & medicines.</p>
+        <div class="hbtns">
+          <button class="btn btn-w" onclick="goto('donate')">Donate Now</button>
+          <button class="btn btn-o" onclick="goto('emergency')">🚨 Find Donors</button>
+        </div>
+      </div>
+      <div class="hstats">
+        <div class="hstat"><div class="n" id="h-users">—</div><div class="l">Registered Donors on Platform</div></div>
+        <div class="hstat"><div class="n" id="h-avail">—</div><div class="l">Available to Donate Right Now</div></div>
+        <div class="hstat"><div class="n">500</div><div class="l">BloodCoins Per Donation</div></div>
+      </div>
+    </div>
+    <h2 class="st">How It Works</h2><p class="ss">Four simple steps to save lives and earn rewards</p>
+    <div class="sgrid">
+      <div class="scard"><div class="snum">1</div><div class="ico">📋</div><h4>Register</h4><p>Create your free BloodCoin account with blood type and location</p><div class="sarr">›</div></div>
+      <div class="scard"><div class="snum">2</div><div class="ico">🩸</div><h4>Donate Blood</h4><p>Visit any partner hospital or blood bank near you</p><div class="sarr">›</div></div>
+      <div class="scard"><div class="snum">3</div><div class="ico">🪙</div><h4>Earn Coins</h4><p>500 BloodCoins credited after blood bank verification</p><div class="sarr">›</div></div>
+      <div class="scard"><div class="snum">4</div><div class="ico">🏥</div><h4>Redeem Savings</h4><p>Use coins for discounts on hospital bills and lab tests</p></div>
+    </div>
+    <h2 class="st">Why BloodCoin?</h2><p class="ss">A complete health rewards ecosystem</p>
+    <div class="fgrid">
+      <div class="fcard"><div class="fi r">🏥</div><h4>Hospital Bill Discounts</h4><p>Up to 30% off at partner hospitals across India</p></div>
+      <div class="fcard"><div class="fi g">🔬</div><h4>Lab Test Savings</h4><p>Discounts on blood tests, pathology and diagnostic reports</p></div>
+      <div class="fcard"><div class="fi gr">💊</div><h4>Pharmacy Offers</h4><p>Save on medicines at 500+ partner pharmacy outlets</p></div>
+      <div class="fcard"><div class="fi r">🚨</div><h4>Emergency Donor Finder</h4><p>Find real registered donors near you in seconds</p></div>
+      <div class="fcard"><div class="fi g">🎖️</div><h4>Donor Badges</h4><p>Bronze → Silver → Gold → Platinum tiers with exclusive perks</p></div>
+      <div class="fcard"><div class="fi b">👨‍👩‍👧</div><h4>Family Sharing</h4><p>Share your coins with family members for medical expenses</p></div>
+    </div>
+  </div>
+
+  <!-- EMERGENCY -->
+  <div class="page" id="page-emergency">
+    <div class="ebanner">
+      <div><h2>🚨 Emergency Blood Finder</h2><p>Real registered donors near you — updated live</p></div>
+      <div style="display:flex;align-items:center;gap:8px"><div class="pulse"></div><span style="font-size:12px;opacity:.85" id="live-txt">Loading...</span></div>
+    </div>
+    <div class="sbar">
+      <input type="text" id="loc-in" placeholder="📍 Your city or area (e.g. Jubilee Hills, Mumbai, Delhi)">
+      <select id="bl-filter">
+        <option value="">All Blood Types</option>
+        <option>A+</option><option>A−</option><option>B+</option><option>B−</option>
+        <option>AB+</option><option>AB−</option><option>O+</option><option>O−</option>
+      </select>
+      <button class="sbtn" onclick="loadDonors()">🔍 Search</button>
+    </div>
+    <div class="acount" id="acount">Loading real donors from database...</div>
+    <div class="elayout">
+      <div class="map-area">
+        <div id="real-map"></div>
+      </div>
+      <div class="donor-list" id="donor-list">
+        <div class="empty-state"><div class="spinner" style="margin:0 auto 1rem;border-top-color:var(--red);border-color:var(--rl)"></div><p>Loading donors...</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page" id="page-dashboard">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:1.4rem">Welcome, <span id="dash-name">...</span> 👋</h2><p style="color:var(--muted);font-size:12px" id="dash-sub">Loading...</p></div>
+      <div id="donor-badge" style="background:var(--gl);border:1px solid #f0d060;border-radius:14px;padding:4px 12px;font-size:12px;font-weight:600;color:var(--gd)"></div>
+    </div>
+    <div class="avbar">
+      <div><h4>Donor Availability</h4><p id="avail-txt">Toggle to appear in emergency donor search</p></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tgl" id="dash-tgl" onclick="toggleAvailability()"></div>
+        <span id="tgl-lbl" style="font-size:12px;font-weight:600;color:var(--muted)">Off</span>
+      </div>
+    </div>
+    <div class="dgrid">
+      <div class="mc"><div class="ml">BloodCoins</div><div class="mv gold" id="dc-coins">0</div><span class="mbadge mbg">≈ ₹<span id="dc-rs">0</span></span></div>
+      <div class="mc"><div class="ml">Donations</div><div class="mv red" id="dc-don">0</div><span class="mbadge mbg">verified</span></div>
+      <div class="mc"><div class="ml">Lives Saved</div><div class="mv grn" id="dc-lives">0</div><span class="mbadge mbg">est. 3 each</span></div>
+      <div class="mc"><div class="ml">Total Saved</div><div class="mv" id="dc-saved">₹0</div><span class="mbadge mbr">redeemed</span></div>
+    </div>
+    <div class="drow">
+      <div class="card">
+        <div class="ct">Donation History <span class="sa" onclick="goto('donate')">+ New Donation</span></div>
+        <div id="don-history"><div style="color:var(--muted);font-size:13px;text-align:center;padding:1.5rem">No donations yet. <a style="color:var(--red);cursor:pointer" onclick="goto('donate')">Register your first →</a></div></div>
+      </div>
+      <div>
+        <div class="cbal"><div class="cl">Available BloodCoins</div><div class="ca">🪙 <span id="bal-coins">0</span></div><p>≈ ₹<span id="bal-rs">0</span> in savings</p><button class="btn btn-w" style="margin-top:9px;font-size:12px;padding:6px 12px" onclick="goto('rewards')">Redeem →</button></div>
+        <div class="card"><div class="ct">Top Donors (Real)</div><div id="leaderboard"><div style="color:var(--muted);font-size:12px;text-align:center;padding:1rem">Loading...</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REWARDS -->
+  <div class="page" id="page-rewards">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:1.3rem">Redeem Rewards</h2><p style="color:var(--muted);font-size:12px">Valid at any partner hospital, lab or pharmacy across India</p></div>
+      <div style="background:var(--gl);border:1px solid #f0d060;border-radius:11px;padding:9px 14px;text-align:center"><div style="font-size:10px;color:var(--gd)">Your Balance</div><div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:var(--gd)" id="rw-coins">🪙 0</div></div>
+    </div>
+    <div style="display:flex;gap:5px;margin-bottom:1.1rem;flex-wrap:wrap">
+      <button class="nt active" style="background:var(--rl);color:var(--red)" onclick="filterRw('all',this)">All</button>
+      <button class="nt" onclick="filterRw('h',this)">🏥 Hospital</button>
+      <button class="nt" onclick="filterRw('l',this)">🔬 Lab Tests</button>
+      <button class="nt" onclick="filterRw('p',this)">💊 Pharmacy</button>
+    </div>
+    <div class="rwgrid" id="rw-grid">
+      <!-- HOSPITAL BILLS -->
+      <div class="rwc" data-cat="h" data-coins="500"><div class="rwh"><span class="rt h">🏥 Hospital Bill</span><h4>Any Partner Hospital</h4><div class="ptn">Valid at govt & private hospitals across India</div></div><div class="rwb"><div class="disc">20% OFF</div><div class="cn">🪙 500 coins · OPD + IPD bills</div><button class="rbtn" onclick="openRedeem('Any Partner Hospital','20% off on hospital bill',500,'h','20% OFF')">Redeem 500 Coins</button></div></div>
+      <div class="rwc" data-cat="h" data-coins="800"><div class="rwh"><span class="rt h">🏥 Hospital Bill</span><h4>Any Partner Hospital</h4><div class="ptn">Valid for emergency, surgery & specialist visits</div></div><div class="rwb"><div class="disc">25% OFF</div><div class="cn">🪙 800 coins · Emergency & surgeries</div><button class="rbtn" onclick="openRedeem('Any Partner Hospital','25% off on hospital bill',800,'h','25% OFF')">Redeem 800 Coins</button></div></div>
+      <div class="rwc" data-cat="h" data-coins="1200"><div class="rwh"><span class="rt h">🏥 Hospital Bill</span><h4>Any Partner Hospital</h4><div class="ptn">Valid for inpatient (IPD) admission</div></div><div class="rwb"><div class="disc">₹1200 OFF</div><div class="cn">🪙 1200 coins · Inpatient admission</div><button class="rbtn" onclick="openRedeem('Any Partner Hospital','₹1200 off on inpatient bill',1200,'h','₹1200 OFF')">Redeem 1200 Coins</button></div></div>
+      <!-- LAB TESTS -->
+      <div class="rwc" data-cat="l" data-coins="300"><div class="rwh"><span class="rt l">🔬 Lab Test</span><h4>Any Diagnostic Lab</h4><div class="ptn">Valid at partner diagnostic centers across India</div></div><div class="rwb"><div class="disc">30% OFF</div><div class="cn">🪙 300 coins · Blood tests & pathology</div><button class="rbtn" onclick="openRedeem('Any Diagnostic Lab','30% off on lab tests',300,'l','30% OFF')">Redeem 300 Coins</button></div></div>
+      <div class="rwc" data-cat="l" data-coins="150"><div class="rwh"><span class="rt l">🔬 Lab Test</span><h4>Any Diagnostic Lab</h4><div class="ptn">Valid on any single test above ₹500</div></div><div class="rwb"><div class="disc">₹150 OFF</div><div class="cn">🪙 150 coins · Any test above ₹500</div><button class="rbtn" onclick="openRedeem('Any Diagnostic Lab','₹150 off on lab test',150,'l','₹150 OFF')">Redeem 150 Coins</button></div></div>
+      <!-- PHARMACY -->
+      <div class="rwc" data-cat="p" data-coins="200"><div class="rwh"><span class="rt p">💊 Pharmacy</span><h4>Any Partner Pharmacy</h4><div class="ptn">Valid at partner pharmacy stores across India</div></div><div class="rwb"><div class="disc">15% OFF</div><div class="cn">🪙 200 coins · Medicines & health products</div><button class="rbtn" onclick="openRedeem('Any Partner Pharmacy','15% off on medicines',200,'p','15% OFF')">Redeem 200 Coins</button></div></div>
+    </div>
+
+    <!-- MY SAVED COUPONS -->
+    <div style="margin-top:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
+        <h3 style="font-size:15px;font-weight:700">🎟️ My Saved Coupons</h3>
+        <span style="font-size:11px;color:var(--muted)">Show at billing counter for discount</span>
+      </div>
+      <div id="my-coupons-list">
+        <div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:13px;background:var(--bg);border-radius:var(--r);border:1px dashed var(--border)">No coupons yet — redeem coins above to get your first coupon!</div>
+      </div>
+    </div>
+
+    <div style="background:var(--rl);border:1px solid #f0c0ba;border-radius:var(--r);padding:.9rem;display:flex;align-items:center;gap:9px;margin-top:1rem">
+      <span style="font-size:1.3rem">ℹ️</span>
+      <span style="font-size:12px;color:var(--muted)">Coupons are saved to your account. Show the coupon code at billing counter of any partner hospital, lab or pharmacy. Valid for 30 days from redemption.</span>
+    </div>
+  </div>
+
+  <!-- DONATE -->
+  <div class="page" id="page-donate">
+    <div class="form-card">
+      <div style="text-align:center;margin-bottom:1.1rem"><div style="font-size:2.2rem">🩸</div><h2 style="font-size:1.2rem;margin-bottom:.3rem">Register Blood Donation</h2><p style="color:var(--muted);font-size:12px">Coins credited after blood bank verification (24–48 hrs)</p></div>
+      <div class="earn-box">🤖 AI will verify your certificate instantly<br><span style="font-size:11px;color:var(--muted);font-weight:400">Upload certificate → AI checks → <strong style="color:var(--gd)">500 🪙 credited instantly!</strong></span></div>
+      <div class="fgrow">
+        <div class="fg"><label>Full Name</label><input type="text" id="d-name" readonly style="background:#f9f9f9"></div>
+        <div class="fg"><label>Blood Type</label><input type="text" id="d-blood" readonly style="background:#f9f9f9"></div>
+      </div>
+      <div class="fgrow">
+        <div class="fg"><label>Donation Type</label><select id="d-type"><option>Whole Blood</option><option>Platelets</option><option>Plasma</option><option>Double Red Cells</option></select></div>
+        <div class="fg"><label>Donation Date</label><input type="date" id="d-date"></div>
+      </div>
+      <div class="fg"><label>State</label>
+        <select id="d-state" >
+          <option value="">-- Select Your State --</option>
+          <option>Andhra Pradesh</option><option>Arunachal Pradesh</option>
+          <option>Assam</option><option>Bihar</option><option>Chhattisgarh</option>
+          <option>Goa</option><option>Gujarat</option><option>Haryana</option>
+          <option>Himachal Pradesh</option><option>Jharkhand</option>
+          <option>Karnataka</option><option>Kerala</option>
+          <option>Madhya Pradesh</option><option>Maharashtra</option>
+          <option>Manipur</option><option>Meghalaya</option><option>Mizoram</option>
+          <option>Nagaland</option><option>Odisha</option><option>Punjab</option>
+          <option>Rajasthan</option><option>Sikkim</option><option>Tamil Nadu</option>
+          <option>Telangana</option><option>Tripura</option>
+          <option>Uttar Pradesh</option><option>Uttarakhand</option>
+          <option>West Bengal</option><option>Delhi</option>
+          <option>Jammu and Kashmir</option><option>Ladakh</option>
+          <option>Chandigarh</option><option>Puducherry</option>
+        </select>
+      </div>
+
+      <div class="fg"><label>Notes (optional)</label><input type="text" id="d-notes" placeholder="e.g. Emergency donation for patient in ICU"></div>
+      <div class="fg">
+        <label>Donation Certificate / Slip <span style="color:var(--red)">*Required for verification</span></label>
+        <div id="cert-upload-area" onclick="document.getElementById('cert-file').click()" style="border:2px dashed var(--border);border-radius:9px;padding:20px;text-align:center;cursor:pointer;transition:.2s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="font-size:2rem;margin-bottom:6px">📎</div>
+          <div style="font-size:13px;font-weight:500" id="cert-label">Click to upload certificate</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">JPG, PNG or PDF — max 2MB</div>
+        </div>
+        <input type="file" id="cert-file" accept="image/*,.pdf" style="display:none" onchange="handleCertUpload(this)">
+        <div id="cert-preview" style="display:none;margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid var(--border)"></div>
+      </div>
+      <div style="background:var(--gl);border:1px solid #f0d060;border-radius:9px;padding:10px 14px;font-size:12px;margin-bottom:.9rem;display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.2rem">ℹ️</span>
+        <span>Upload your donation certificate. Admin will verify it within <strong>24 hours</strong>. Coins will be credited after approval.</span>
+      </div>
+      <button class="sbtn2" id="don-btn" onclick="submitDonation()">Submit for Verification 🩸</button>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="page" id="page-profile">
+    <div class="profile-card">
+      <div class="prof-av" id="prof-av">?</div>
+      <h3 style="text-align:center;margin-bottom:.3rem" id="prof-name">Loading...</h3>
+      <p style="text-align:center;color:var(--muted);font-size:12px;margin-bottom:1.3rem" id="prof-email"></p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.2rem">
+        <div style="background:var(--rl);border-radius:9px;padding:12px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Blood Type</div><div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--red)" id="prof-blood">—</div></div>
+        <div style="background:var(--gl);border-radius:9px;padding:12px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">BloodCoins</div><div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--gd)" id="prof-coins">0</div></div>
+        <div style="background:var(--grl);border-radius:9px;padding:12px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Donations</div><div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--green)" id="prof-don">0</div></div>
+        <div style="background:var(--bl);border-radius:9px;padding:12px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">City</div><div style="font-size:12px;font-weight:600;color:var(--blue);margin-top:6px;word-break:break-word" id="prof-city">—</div></div>
+      </div>
+      <div class="fg"><label>Phone Number (visible to emergency seekers)</label><input type="tel" id="prof-phone-in" placeholder="+91 98765 43210"></div>
+      <button class="sbtn2" onclick="updateProfile()" style="margin-bottom:8px">Save Changes</button>
+      <button onclick="doLogout()" style="width:100%;padding:10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--muted)">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+  <!-- ADMIN PAGE -->
+  <div class="page" id="page-admin">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:1.4rem">🛡️ Admin Panel</h2><p style="color:var(--muted);font-size:12px">Review and verify blood donation certificates</p></div>
+      <div id="admin-stats" style="display:flex;gap:8px"></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:1.1rem;flex-wrap:wrap">
+      <button class="nt active" style="background:var(--rl);color:var(--red)" onclick="filterAdmin('pending',this)">⏳ Pending</button>
+      <button class="nt" onclick="filterAdmin('approved',this)">✅ Approved</button>
+      <button class="nt" onclick="filterAdmin('rejected',this)">❌ Rejected</button>
+      <button class="nt" onclick="filterAdmin('all',this)">All</button>
+    </div>
+    <div id="admin-list"><div style="text-align:center;padding:3rem;color:var(--muted)"><div class="spinner" style="margin:0 auto 1rem;border-color:var(--rl);border-top-color:var(--red)"></div><p>Loading submissions...</p></div></div>
+  </div>
+</div>
+
+<!-- AI VERIFICATION RESULT MODAL -->
+<div class="mbg2" id="ai-result-modal">
+  <div style="background:#fff;border-radius:20px;padding:2rem;max-width:380px;width:92%;text-align:center">
+    <div id="ai-result-icon" style="font-size:3.5rem;margin-bottom:.5rem">✅</div>
+    <h3 id="ai-result-title" style="font-size:1.2rem;margin-bottom:.5rem">Verifying...</h3>
+    <p id="ai-result-msg" style="font-size:13px;color:var(--muted);margin-bottom:.8rem;line-height:1.6"></p>
+    <div id="ai-conf-badge" style="display:inline-block;font-size:11px;background:#f5f5f5;border-radius:12px;padding:3px 10px;margin-bottom:.8rem;color:var(--muted)"></div><br>
+    <p id="ai-result-conf" style="font-size:13px;font-weight:600;margin-bottom:1.2rem"></p>
+    <button onclick="closeModal('ai-result-modal')" style="width:100%;padding:11px;background:var(--red);color:#fff;border:none;border-radius:9px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:14px">OK</button>
+  </div>
+</div>
+
+<!-- CERTIFICATE VIEWER MODAL -->
+<div class="mbg2" id="cert-modal">
+  <div style="background:#fff;border-radius:18px;padding:1.5rem;max-width:600px;width:95%;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <h3 style="font-size:1.1rem" id="cert-modal-title">Donation Certificate</h3>
+      <button onclick="closeModal('cert-modal')" style="border:none;background:#f5f5f5;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:16px">×</button>
+    </div>
+    <div id="cert-modal-body"></div>
+    <div id="cert-modal-actions" style="display:flex;gap:10px;margin-top:1rem"></div>
+  </div>
+</div>
+
+<!-- REDEEM MODAL -->
+<div class="mbg2" id="redeem-modal">
+  <div class="modal">
+    <div style="font-size:1.8rem;margin-bottom:5px">🎟️</div>
+    <h3 id="rm-title">Redeem</h3><p id="rm-desc"></p>
+    <div class="mcoins" id="rm-coins">0 🪙</div>
+    <p style="font-size:11px;color:var(--muted)">Balance after: <strong id="rm-after"></strong> coins</p>
+    <div class="mbtns"><button class="mb-c" onclick="closeModal('redeem-modal')">Cancel</button><button class="mb-ok" onclick="confirmRedeem()">Confirm Redeem</button></div>
+  </div>
+</div>
+
+<!-- CONTACT MODAL -->
+<div class="mbg2" id="contact-modal">
+  <div class="cm">
+    <div class="cm-av" id="cm-av" style="background:var(--red)">?</div>
+    <h3 id="cm-name">Donor</h3>
+    <p id="cm-sub" style="color:var(--muted);font-size:12px;margin-bottom:1rem"></p>
+    <div id="cm-info" style="background:var(--grl);border:1px solid #a8e6c0;border-radius:8px;padding:10px;margin-bottom:1rem;text-align:left;font-size:12px;color:var(--text)"></div>
+    <button class="callbtn" id="cm-call">📞 Call Donor</button>
+    <button class="msgbtn" onclick="closeModal('contact-modal');showToast('💬 Message request sent!')">💬 Send Message Request</button>
+    <button class="cancelbtn" onclick="closeModal('contact-modal')">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- FIREBASE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs, addDoc, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ╔══════════════════════════════════════════════════╗
+// ║   STEP 1: REPLACE WITH YOUR FIREBASE CONFIG      ║
+// ║   Get this from Firebase Console →               ║
+// ║   Project Settings → Your Apps → Config          ║
+// ╚══════════════════════════════════════════════════╝
+const firebaseConfig = {
+  apiKey:            "AIzaSyC1SBKmnXxwuLBXaQAi06R8JrEOEa3yppc",
+  authDomain:        "bloodcoin-app.firebaseapp.com",
+  projectId:         "bloodcoin-app",
+  storageBucket:     "bloodcoin-app.firebasestorage.app",
+  messagingSenderId: "668348241688",
+  appId:             "1:668348241688:web:5309e2a29b8d5e7ae2b06d"
+};
+
+const app   = initializeApp(firebaseConfig);
+const auth  = getAuth(app);
+const db    = getFirestore(app);
+
+let currentUser = null;
+let userData    = null;
+let redeemAmt   = 0;
+let regAvail    = true;
+
+// ── AUTH STATE LISTENER ──
+onAuthStateChanged(auth, async (user) => {
+  document.getElementById('loading-screen').style.display = 'none';
+  if (user) {
+    currentUser = user;
+    await loadUserData(user.uid);
+    showApp();
+  } else {
+    document.getElementById('auth-screen').style.display   = 'flex';
+    document.getElementById('app-screen').style.display    = 'none';
+  }
+});
+
+async function loadUserData(uid) {
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (snap.exists()) { userData = snap.data(); }
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display  = 'block';
+  refreshUI();
+  loadDonors();
+  loadLeaderboard();
+  loadHomeStats();
+  loadDonationHistory();
+}
+
+function refreshUI() {
+  if (!userData) return;
+  const init = ((userData.firstName||'?')[0] + (userData.lastName||'?')[0]).toUpperCase();
+  const coins = userData.coins || 0;
+  document.getElementById('nav-init').textContent     = init;
+  document.getElementById('nav-coins').textContent    = coins.toLocaleString();
+  document.getElementById('dash-name').textContent    = userData.firstName || 'User';
+  document.getElementById('dash-sub').textContent     = `${userData.bloodType||'?'} blood · ${userData.city||''}`;
+  document.getElementById('dc-coins').textContent     = coins.toLocaleString();
+  document.getElementById('dc-rs').textContent        = coins.toLocaleString();
+  document.getElementById('dc-don').textContent       = userData.donationCount || 0;
+  document.getElementById('dc-lives').textContent     = ((userData.donationCount||0) * 3);
+  document.getElementById('dc-saved').textContent     = '₹' + (userData.totalRedeemed||0).toLocaleString();
+  document.getElementById('bal-coins').textContent    = coins.toLocaleString();
+  document.getElementById('bal-rs').textContent       = coins.toLocaleString();
+  document.getElementById('rw-coins').textContent     = '🪙 ' + coins.toLocaleString();
+  const badge = coins>=5000?'💎 Platinum':coins>=2000?'🥇 Gold':coins>=1000?'🥈 Silver':'🥉 Bronze';
+  document.getElementById('donor-badge').textContent  = badge;
+  // availability
+  const avail = userData.available || false;
+  document.getElementById('dash-tgl').className       = 'tgl' + (avail?' on':'');
+  document.getElementById('tgl-lbl').textContent      = avail ? 'Available' : 'Unavailable';
+  document.getElementById('tgl-lbl').style.color      = avail ? 'var(--green)' : 'var(--muted)';
+  document.getElementById('avail-txt').textContent    = avail ? 'You are visible in emergency donor search' : 'Turn on to appear in emergency search';
+  // donate form
+  document.getElementById('d-name').value  = (userData.firstName||'') + ' ' + (userData.lastName||'');
+  document.getElementById('d-blood').value = userData.bloodType || '';
+  // profile page
+  document.getElementById('prof-av').textContent    = init;
+  document.getElementById('prof-name').textContent  = (userData.firstName||'') + ' ' + (userData.lastName||'');
+  document.getElementById('prof-email').textContent = currentUser.email;
+  document.getElementById('prof-blood').textContent = userData.bloodType || '—';
+  document.getElementById('prof-coins').textContent = coins.toLocaleString();
+  document.getElementById('prof-don').textContent   = userData.donationCount || 0;
+  document.getElementById('prof-city').textContent  = userData.city || '—';
+  document.getElementById('prof-phone-in').value    = userData.phone || '';
+  updateRedeemBtns();
+}
+
+// ── REGISTER ──
+window.doRegister = async function() {
+  const fn    = document.getElementById('r-fn').value.trim();
+  const ln    = document.getElementById('r-ln').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const phone = document.getElementById('r-phone').value.trim();
+  const pass  = document.getElementById('r-pass').value;
+  const city  = document.getElementById('r-city').value.trim();
+  const blood = document.querySelector('#register-form .bb.sel')?.textContent || 'A+';
+  const err   = document.getElementById('reg-err');
+  if (!fn||!email||!pass||!city) { showErr(err,'Please fill all required fields (*)'); return; }
+  if (pass.length < 6)           { showErr(err,'Password must be at least 6 characters'); return; }
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true; btn.textContent = 'Creating account...';
+  try {
+    const cred    = await createUserWithEmailAndPassword(auth, email, pass);
+    const profile = { firstName:fn, lastName:ln, email, phone, city, bloodType:blood, available:regAvail, coins:100, donationCount:0, totalRedeemed:0, createdAt:serverTimestamp() };
+    await setDoc(doc(db,'users',cred.user.uid), profile);
+    userData = profile;
+    showToast('🎉 Welcome to BloodCoin! 100 coins credited!');
+  } catch(e) {
+    showErr(err, e.code==='auth/email-already-in-use' ? 'This email is already registered. Please sign in.' : e.message.replace('Firebase: ',''));
+    btn.disabled = false; btn.textContent = 'Create Account & Earn 100 Coins 🪙';
+  }
+};
+
+// ── LOGIN ──
+window.doLogin = async function() {
+  const email = document.getElementById('li-email').value.trim();
+  const pass  = document.getElementById('li-pass').value;
+  const err   = document.getElementById('login-err');
+  if (!email||!pass) { showErr(err,'Please enter your email and password'); return; }
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch(e) {
+    showErr(err, 'Incorrect email or password. Please try again.');
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+};
+
+// ── LOGOUT ──
+window.doLogout = async function() {
+  if (confirm('Sign out of BloodCoin?')) {
+    await signOut(auth);
+    currentUser = null; userData = null;
+  }
+};
+
+// ── SHOW / HIDE PASSWORD ──
+window.togglePwd = function(inputId, eyeId) {
+  const inp = document.getElementById(inputId);
+  const eye = document.getElementById(eyeId);
+  if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; }
+  else { inp.type = 'password'; eye.textContent = '👁'; }
+};
+
+// ── FORGOT PASSWORD — OTP SYSTEM ──
+let otpCode = null;
+let otpEmail = null;
+let otpVerified = false;
+
+window.showForgotPassword = function() {
+  document.querySelectorAll('.aform').forEach(f => f.classList.remove('active'));
+  document.querySelectorAll('.atab').forEach(t => t.classList.remove('active'));
+  document.getElementById('forgot-form').classList.add('active');
+  document.getElementById('forgot-err').style.display = 'none';
+  document.getElementById('forgot-email').value = document.getElementById('li-email').value || '';
+};
+
+window.sendOTP = async function() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const err   = document.getElementById('forgot-err');
+  const btn   = document.getElementById('forgot-btn');
+  if (!email) { showErr(err, 'Please enter your email address'); return; }
+  btn.disabled = true; btn.textContent = 'Sending OTP...';
+  err.style.display = 'none';
+
+  // Check if email exists in Firebase Auth by attempting a sign-in with wrong pass
+  // Generate 4-digit OTP
+  otpCode  = String(Math.floor(1000 + Math.random() * 9000));
+  otpEmail = email;
+  otpVerified = false;
+
+  // Send OTP via EmailJS (free service)
+  try {
+    await emailjs.send('service_w0kdn9f', 'c9bi3er', {
+      to_email: email,
+      otp_code: otpCode,
+      passcode: otpCode,
+      time: '10 minutes',
+      app_name: 'BloodCoin'
+    });
+    // Show OTP form
+    document.querySelectorAll('.aform').forEach(f => f.classList.remove('active'));
+    document.getElementById('otp-form').classList.add('active');
+    document.getElementById('otp-sent-to').textContent = 'OTP sent to ' + email;
+    document.getElementById('otp-input').value = '';
+    document.getElementById('otp-err').style.display = 'none';
+    showToast('📧 OTP sent to ' + email + '! Check your inbox.');
+  } catch(e) {
+    // EmailJS not configured — use Firebase email reset as fallback
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showErr(err, '');
+      err.style.background = '#eafaf1'; err.style.color = '#1a8a4a'; err.style.borderColor = '#a8e6c0';
+      err.textContent = '✅ Password reset link sent to ' + email + '! Check your inbox.';
+      err.style.display = 'block';
+      btn.textContent = 'Sent ✅';
+      setTimeout(() => { switchTab('login'); btn.disabled=false; btn.textContent='Send OTP Code'; err.style.background=''; err.style.color=''; err.style.borderColor=''; }, 4000);
+    } catch(e2) {
+      if (e2.code === 'auth/user-not-found' || e2.code === 'auth/invalid-credential') showErr(err, 'No account found with this email address.');
+      else showErr(err, 'Error sending OTP. Please try again.');
+      btn.disabled = false; btn.textContent = 'Send OTP Code';
+    }
+  }
+};
+
+window.verifyOTP = function() {
+  const entered = document.getElementById('otp-input').value.trim();
+  const err     = document.getElementById('otp-err');
+  if (!entered || entered.length !== 4) { showErr(err, 'Please enter the 4-digit OTP'); return; }
+  if (entered !== otpCode) { showErr(err, '❌ Incorrect OTP. Please check and try again.'); return; }
+  otpVerified = true;
+  document.querySelectorAll('.aform').forEach(f => f.classList.remove('active'));
+  document.getElementById('newpass-form').classList.add('active');
+  document.getElementById('newpass-err').style.display = 'none';
+  document.getElementById('new-pass').value = '';
+  document.getElementById('confirm-pass').value = '';
+  showToast('✅ OTP verified! Set your new password.');
+};
+
+window.saveNewPassword = async function() {
+  if (!otpVerified) { showToast('❌ OTP not verified'); return; }
+  const newPass  = document.getElementById('new-pass').value;
+  const confPass = document.getElementById('confirm-pass').value;
+  const err      = document.getElementById('newpass-err');
+  const btn      = document.getElementById('newpass-btn');
+  if (!newPass || newPass.length < 6) { showErr(err, 'Password must be at least 6 characters'); return; }
+  if (newPass !== confPass)           { showErr(err, 'Passwords do not match'); return; }
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    // Sign in user then update password using Firebase
+    // We use sendPasswordResetEmail as final step — user gets a reset email
+    await sendPasswordResetEmail(auth, otpEmail);
+    showToast('✅ Password reset email sent! Click the link in your email to complete reset.');
+    setTimeout(() => { switchTab('login'); btn.disabled=false; btn.textContent='Save New Password'; otpCode=null; otpEmail=null; otpVerified=false; }, 3000);
+  } catch(e) {
+    showErr(err, 'Error: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Save New Password';
+  }
+};
+
+// ── TOGGLE AVAILABILITY ──
+window.toggleAvailability = async function() {
+  if (!currentUser) return;
+  const newVal = !(userData.available||false);
+  await updateDoc(doc(db,'users',currentUser.uid), { available: newVal });
+  userData.available = newVal;
+  refreshUI();
+  showToast(newVal ? '✅ You are now visible in emergency donor search!' : '🔴 You are hidden from emergency search.');
+};
+
+// ── LOAD DONORS ──
+window.loadDonors = async function() {
+  const list    = document.getElementById('donor-list');
+  const pins    = document.getElementById('map-pins');
+  const bFilter = document.getElementById('bl-filter')?.value || '';
+  if (list) list.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto 1rem;border-color:var(--rl);border-top-color:var(--red)"></div><p>Loading real donors...</p></div>';
+  try {
+    const snap = await getDocs(collection(db,'users'));
+    let donors = [];
+    snap.forEach(d => { if (d.id !== currentUser?.uid) donors.push({...d.data(), id:d.id}); });
+    if (bFilter) donors = donors.filter(d => d.bloodType === bFilter);
+    donors.sort((a,b) => (b.available?1:0)-(a.available?1:0));
+    const availCount = donors.filter(d => d.available).length;
+    document.getElementById('acount').innerHTML    = `✅ <strong>${availCount}</strong> donors available · <span>${donors.length}</span> total registered users`;
+    document.getElementById('live-txt').textContent = `${availCount} real donors available now`;
+    if (!donors.length) {
+      list.innerHTML = '<div class="empty-state"><div class="eico">👥</div><h4>No donors found</h4><p>Share BloodCoin with friends so they register. You\'ll see them here!</p></div>';
+      if (pins) pins.innerHTML = '';
+      return;
+    }
+    renderLeafletMap(donors);
+    if (list) {
+      list.innerHTML = donors.map(d => {
+        const isAv   = d.available || false;
+        const init   = ((d.firstName||'?')[0]+(d.lastName||'?')[0]).toUpperCase();
+        const donCnt = d.donationCount || 0;
+        return `<div class="dc" id="dc-${d.id}" onclick="openContact('${d.id}')">
+          <div class="dc-top">
+            <div class="dc-av ${isAv?'av':'bz'}">${init}</div>
+            <div><div class="dc-name">${d.firstName||''} ${d.lastName||''}</div><div class="dc-loc">📍 ${d.city||'Unknown area'}</div></div>
+          </div>
+          <div class="dbadges">
+            <span class="badge bl">🩸 ${d.bloodType||'?'}</span>
+            <span class="badge ${isAv?'av':'bz'}">${isAv?'✅ Available':'⏸ Unavailable'}</span>
+            ${donCnt>=10?'<span class="badge gold">🥇 Gold Donor</span>':donCnt>=5?'<span class="badge gold">🥈 Silver</span>':''}
+            ${donCnt>0?`<span class="badge dist">${donCnt} donation${donCnt>1?'s':''}</span>`:''}
+          </div>
+          <button class="${isAv?'cbtn':'cbtn off'}" onclick="event.stopPropagation();${isAv?`openContact('${d.id}')`:''}">${isAv?'📞 Contact Donor':'Currently Unavailable'}</button>
+        </div>`;
+      }).join('');
+    }
+  } catch(e) {
+    if (list) list.innerHTML = `<div class="empty-state"><div class="eico">⚠️</div><h4>Error loading donors</h4><p>${e.message}</p></div>`;
+  }
+};
+
+// ── OPEN CONTACT MODAL ──
+window.openContact = async function(uid) {
+  try {
+    const snap = await getDoc(doc(db,'users',uid));
+    if (!snap.exists()) return;
+    const d    = snap.data();
+    const init = ((d.firstName||'?')[0]+(d.lastName||'?')[0]).toUpperCase();
+    document.getElementById('cm-av').textContent   = init;
+    document.getElementById('cm-name').textContent = (d.firstName||'') + ' ' + (d.lastName||'');
+    document.getElementById('cm-sub').textContent  = `${d.bloodType||'?'} blood · ${d.city||'Unknown'} · ${d.available?'Available now':'Currently unavailable'}`;
+    document.getElementById('cm-info').innerHTML   = `<strong>✅ Verified Donor</strong> · ${d.donationCount||0} total donations<br>📞 ${d.phone || 'Phone not added — ask them to update profile'}`;
+    const callBtn = document.getElementById('cm-call');
+    if (d.phone) {
+      callBtn.style.background = 'var(--green)';
+      callBtn.textContent      = '📞 Call ' + (d.firstName||'Donor') + ' (' + d.phone + ')';
+      callBtn.onclick          = () => { window.location.href='tel:'+d.phone; closeModal('contact-modal'); };
+      callBtn.disabled         = false;
+    } else {
+      callBtn.style.background = '#ccc';
+      callBtn.textContent      = '📞 No phone number added yet';
+      callBtn.onclick          = () => showToast('⚠️ This donor has not added their phone number. Ask them to update their profile.');
+    }
+    document.getElementById('contact-modal').classList.add('open');
+  } catch(e) { showToast('Error: ' + e.message); }
+};
+
+// ── LEADERBOARD ──
+async function loadLeaderboard() {
+  try {
+    const snap = await getDocs(collection(db,'users'));
+    let users = [];
+    snap.forEach(d => users.push({...d.data(), id:d.id}));
+    users.sort((a,b) => (b.coins||0)-(a.coins||0));
+    const top = users.slice(0,5);
+    const lb  = document.getElementById('leaderboard');
+    if (!lb) return;
+    if (!top.length) { lb.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:.8rem">No donors yet</div>'; return; }
+    lb.innerHTML = top.map((u,i) => {
+      const init = ((u.firstName||'?')[0]+(u.lastName||'?')[0]).toUpperCase();
+      const isMe = u.id === currentUser?.uid;
+      const med  = i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '+(i+1);
+      return `<div class="lbi ${i<3?'top':''} ${isMe?'me':''}">
+        <div class="lbr">${med}</div>
+        <div class="lbav" style="${isMe?'background:var(--red);color:#fff':''}">${init}</div>
+        <div class="lbn">${u.firstName||'?'} ${(u.lastName||'')[0]||''}.${isMe?' (You)':''}</div>
+        <div class="lbc">${(u.coins||0).toLocaleString()} 🪙</div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// ── DONATION HISTORY ──
+async function loadDonationHistory() {
+  if (!currentUser) return;
+  try {
+    const snap = await getDocs(query(collection(db,'users',currentUser.uid,'donations'), orderBy('createdAt','desc'), limit(5)));
+    const el   = document.getElementById('don-history');
+    if (!el) return;
+    if (snap.empty) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1.5rem">No donations yet.<br><a style="color:var(--red);cursor:pointer" onclick="goto(\'donate\')">Register your first donation →</a></div>'; return; }
+    el.innerHTML = '';
+    snap.forEach(d => {
+      const x = d.data();
+      const statusBadge = x.aiVerified
+        ? '<span style="font-size:10px;background:var(--grl);color:var(--green);padding:1px 6px;border-radius:8px;margin-left:4px">🤖 AI Verified</span>'
+        : '<span style="font-size:10px;background:#f5f5f5;color:#888;padding:1px 6px;border-radius:8px;margin-left:4px">Pending</span>';
+      el.innerHTML += `<div class="di"><div class="dic">🩸</div><div style="flex:1"><div class="dn2">${x.hospital||'Blood Bank'}${statusBadge}</div><div class="dd">${x.date||'—'} · ${x.type||'Whole Blood'} · ${userData?.bloodType||''}</div></div><div class="dco">+${x.coins||500} 🪙</div></div>`;
+    });
+  } catch(e) {}
+}
+
+// ── SUBMIT DONATION ──
+// ── CERTIFICATE UPLOAD HANDLER ──
+let certBase64 = null;
+let certMimeType = null;
+
+window.handleCertUpload = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { showToast('❌ File too large. Max 2MB'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const result = e.target.result;
+    certBase64 = result.split(',')[1];
+    certMimeType = file.type;
+    document.getElementById('cert-label').textContent = '✅ ' + file.name + ' uploaded';
+    document.getElementById('cert-upload-area').style.borderColor = 'var(--green)';
+    document.getElementById('cert-upload-area').style.background = 'var(--grl)';
+    const preview = document.getElementById('cert-preview');
+    if (file.type.startsWith('image/')) {
+      preview.style.display = 'block';
+      preview.innerHTML = '<img src="' + result + '" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px">';
+    } else {
+      preview.style.display = 'block';
+      preview.innerHTML = '<div style="padding:12px;text-align:center;font-size:13px;color:var(--blue)">📄 PDF uploaded: ' + file.name + '</div>';
+    }
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── AI CERTIFICATE VERIFICATION ──
+async function verifyCertificateWithAI(base64Data, mimeType, donationInfo) {
+  // Calls our Netlify serverless function (proxy to Anthropic API)
+  // This avoids CORS error that happens when calling Anthropic directly from browser
+  const response = await fetch('/.netlify/functions/verify-certificate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base64Data, mimeType, donationInfo })
+  });
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error('Verification service error: ' + err);
+  }
+  const result = await response.json();
+  if (result.error) throw new Error(result.error);
+  return result;
+}
+
+// ── SUBMIT DONATION WITH AI VERIFICATION ──
+window.submitDonation = async function() {
+  if (!currentUser) return;
+  const hospital = document.getElementById('d-state').value || 'Not specified';
+  const donType  = document.getElementById('d-type').value;
+  const date     = document.getElementById('d-date').value;
+  const notes    = document.getElementById('d-notes').value;
+
+  if (!hospital || hospital === '-- Select Hospital --') {
+    showToast('⚠️ Please select a blood bank / hospital'); return;
+  }
+  if (!certBase64) {
+    showToast('⚠️ Please upload your donation certificate for verification'); return;
+  }
+
+  const btn = document.getElementById('don-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:8px"></span> AI is verifying your certificate...';
+
+  try {
+    // STEP 1: AI verifies the certificate
+    showToast('🤖 AI is analyzing your certificate...');
+    const result = await verifyCertificateWithAI(certBase64, certMimeType, { hospital, date, type: donType });
+
+    if (!result.verified) {
+      // REJECTED by AI
+      btn.disabled = false;
+      btn.textContent = 'Submit for Verification 🩸';
+      showVerificationResult(false, result.reason, result.confidence);
+      return;
+    }
+
+    // STEP 2: Certificate verified — save donation & credit coins
+    const donation = {
+      type: donType, hospital, date: date || new Date().toLocaleDateString('en-IN'),
+      notes, coins: 500, status: 'verified',
+      aiVerified: true, aiConfidence: result.confidence,
+      aiReason: result.reason,
+      donorNameOnCert: result.donorName || '',
+      createdAt: serverTimestamp()
+    };
+    await addDoc(collection(db,'users',currentUser.uid,'donations'), donation);
+    const newCoins = (userData.coins||0) + 500;
+    const newCount = (userData.donationCount||0) + 1;
+    await updateDoc(doc(db,'users',currentUser.uid), { coins: newCoins, donationCount: newCount });
+    userData.coins = newCoins; userData.donationCount = newCount;
+    refreshUI(); loadLeaderboard();
+
+    // Reset form
+    certBase64 = null; certMimeType = null;
+    document.getElementById('cert-label').textContent = 'Click to upload certificate';
+    document.getElementById('cert-upload-area').style.borderColor = '';
+    document.getElementById('cert-upload-area').style.background = '';
+    document.getElementById('cert-preview').style.display = 'none';
+    document.getElementById('cert-file').value = '';
+
+    showVerificationResult(true, result.reason, result.confidence);
+    setTimeout(() => goto('dashboard'), 2500);
+
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Submit for Verification 🩸';
+};
+
+function showVerificationResult(success, reason, confidence) {
+  const modal = document.getElementById('ai-result-modal');
+  const icon  = document.getElementById('ai-result-icon');
+  const title = document.getElementById('ai-result-title');
+  const msg   = document.getElementById('ai-result-msg');
+  const conf  = document.getElementById('ai-result-conf');
+  if (success) {
+    icon.textContent  = '✅';
+    icon.style.color  = 'var(--green)';
+    title.textContent = 'Certificate Verified!';
+    title.style.color = 'var(--green)';
+    msg.textContent   = reason || 'Your blood donation certificate has been verified successfully.';
+    conf.textContent  = '500 🪙 BloodCoins have been credited to your account!';
+    conf.style.color  = 'var(--gd)';
+  } else {
+    icon.textContent  = '❌';
+    icon.style.color  = 'var(--red)';
+    title.textContent = 'Verification Failed';
+    title.style.color = 'var(--red)';
+    msg.textContent   = reason || 'The uploaded document does not appear to be a valid blood donation certificate.';
+    conf.textContent  = 'Please upload a clear photo of your official donation certificate or receipt from the blood bank.';
+    conf.style.color  = 'var(--muted)';
+  }
+  document.getElementById('ai-conf-badge').textContent = 'Confidence: ' + (confidence||'—');
+  modal.classList.add('open');
+}
+
+// ── REDEEM ──
+let redeemMeta = {};
+window.openRedeem = function(name, desc, amt, cat, disc) {
+  redeemAmt  = amt;
+  redeemMeta = { name, desc, cat, disc };
+  document.getElementById('rm-title').textContent = disc + ' — ' + name;
+  document.getElementById('rm-desc').textContent  = desc + ' · Coins: ' + amt;
+  document.getElementById('rm-coins').textContent = '-' + amt + ' 🪙';
+  document.getElementById('rm-after').textContent = ((userData?.coins||0) - amt).toLocaleString();
+  document.getElementById('redeem-modal').classList.add('open');
+};
+
+window.confirmRedeem = async function() {
+  if (!currentUser || (userData?.coins||0) < redeemAmt) { showToast('❌ Not enough coins'); closeModal('redeem-modal'); return; }
+  try {
+    const newCoins    = userData.coins - redeemAmt;
+    const newRedeemed = (userData.totalRedeemed||0) + redeemAmt;
+    const code     = 'BC-' + Math.random().toString(36).substring(2,8).toUpperCase();
+    const expiry   = new Date(); expiry.setDate(expiry.getDate() + 30);
+    const expiryStr = expiry.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+    const now      = new Date().toISOString();
+    const coupon   = {
+      code,
+      name:       redeemMeta.name  || 'Discount',
+      desc:       redeemMeta.desc  || '',
+      discount:   redeemMeta.disc  || '',
+      category:   redeemMeta.cat   || 'h',
+      coinsUsed:  redeemAmt,
+      status:     'active',
+      expiry:     expiryStr,
+      redeemedAt: now
+    };
+    // Save coupon to Firestore coupons sub-collection
+    await addDoc(collection(db,'users',currentUser.uid,'coupons'), coupon);
+    // Deduct coins
+    await updateDoc(doc(db,'users',currentUser.uid), { coins:newCoins, totalRedeemed:newRedeemed });
+    userData.coins = newCoins; userData.totalRedeemed = newRedeemed;
+    refreshUI();
+    closeModal('redeem-modal');
+    showToast('✅ Coupon saved! Code: ' + code + ' · Valid till ' + expiryStr);
+    loadMyCoupons();
+  } catch(e) {
+    console.error('Redeem error:', e);
+    showToast('❌ Error: ' + e.message);
+  }
+};
+
+// ── LOAD MY COUPONS ──
+window.loadMyCoupons = async function() {
+  if (!currentUser) return;
+  const el = document.getElementById('my-coupons-list');
+  if (!el) return;
+  try {
+    const snap = await getDocs(collection(db,'users',currentUser.uid,'coupons'));
+    if (snap.empty) {
+      el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:13px;background:var(--bg);border-radius:var(--r);border:0.5px dashed var(--border)">No coupons yet — redeem coins above to get your first coupon!</div>';
+      return;
+    }
+    const catIcon = { h:'🏥', l:'🔬', p:'💊' };
+    el.innerHTML = snap.docs.map(d => {
+      const c = d.data();
+      const isActive = c.status === 'active';
+      return `<div style="background:var(--card);border:1px solid ${isActive?'#f0c0ba':' var(--border)'};border-radius:var(--r);padding:1rem;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="background:${isActive?'var(--rl)':'#f5f5f5'};border-radius:10px;padding:10px 14px;text-align:center;min-width:80px;flex-shrink:0">
+          <div style="font-size:1.4rem">${catIcon[c.category]||'🎟️'}</div>
+          <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:${isActive?'var(--red)':'#aaa'};margin-top:2px">${c.discount}</div>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">${c.name}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${c.desc}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:${isActive?'var(--red)':'#aaa'};background:${isActive?'var(--rl)':'#f5f5f5'};padding:3px 10px;border-radius:6px;letter-spacing:1px">${c.code}</span>
+            <span style="font-size:10px;color:var(--muted)">Valid till ${c.expiry}</span>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:10px;padding:3px 8px;border-radius:10px;font-weight:600;background:${isActive?'var(--grl)':'#f5f5f5'};color:${isActive?'var(--green)':'#aaa'}">${isActive?'✅ Active':'Used'}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">${c.coinsUsed} 🪙 used</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+};
+
+// ── UPDATE PROFILE ──
+window.updateProfile = async function() {
+  if (!currentUser) return;
+  const phone = document.getElementById('prof-phone-in').value.trim();
+  await updateDoc(doc(db,'users',currentUser.uid), { phone });
+  userData.phone = phone;
+  showToast('✅ Profile updated! Your phone number is now visible to emergency seekers.');
+};
+
+// ── HOME STATS ──
+async function loadHomeStats() {
+  try {
+    const snap = await getDocs(collection(db,'users'));
+    let total = 0, avail = 0;
+    snap.forEach(d => { total++; if(d.data().available) avail++; });
+    document.getElementById('h-users').textContent = total;
+    document.getElementById('h-avail').textContent = avail;
+  } catch(e) {}
+}
+
+// ── HELPERS ──
+function updateRedeemBtns() {
+  const coins = userData?.coins || 0;
+  document.querySelectorAll('.rwc').forEach(c => {
+    const n = parseInt(c.dataset.coins);
+    const b = c.querySelector('.rbtn');
+    b.disabled    = coins < n;
+    b.textContent = coins < n ? 'Need ' + n + ' coins' : 'Redeem ' + n + ' Coins';
+  });
+}
+
+window.switchTab = function(tab) {
+  document.querySelectorAll('.atab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.aform').forEach(f => f.classList.remove('active'));
+  document.getElementById(tab+'-form').classList.add('active');
+  document.querySelectorAll('.atab')[tab==='login'?0:1].classList.add('active');
+  document.getElementById('login-err').style.display = 'none';
+  document.getElementById('reg-err').style.display   = 'none';
+  document.getElementById('login-btn').disabled  = false; document.getElementById('login-btn').textContent  = 'Sign In';
+  document.getElementById('reg-btn').disabled    = false; document.getElementById('reg-btn').textContent    = 'Create Account & Earn 100 Coins 🪙';
+};
+
+window.selBlood = function(btn) {
+  btn.closest('.blood-grid').querySelectorAll('.bb').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+};
+
+window.toggleRegAvail = function() {
+  regAvail = !regAvail;
+  document.getElementById('reg-tgl').className = 'tgl' + (regAvail?' on':'');
+};
+
+window.goto = function(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nt').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.bnt').forEach(t => t.classList.remove('active'));
+  const pg = document.getElementById('page-'+page);
+  if (pg) pg.classList.add('active');
+  const tab = document.getElementById('tab-'+page);
+  if (tab) tab.classList.add('active');
+  const btab = document.getElementById('btab-'+page);
+  if (btab) btab.classList.add('active');
+  window.scrollTo(0,0);
+  if (page==='emergency') loadDonors();
+  if (page==='rewards') loadMyCoupons();
+  if (page==='dashboard') { loadLeaderboard(); loadDonationHistory(); }
+  if (page==='home') loadHomeStats();
+};
+
+window.closeModal = function(id) { document.getElementById(id).classList.remove('open'); };
+window.showToast  = function(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4500);
+};
+
+function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+document.getElementById('d-date').value = new Date().toISOString().split('T')[0];
+
+// LEAFLET REAL MAP
+let leafletMap = null;
+let mapMarkers = [];
+
+window.renderLeafletMap = function(donors) {
+  const mapEl = document.getElementById('real-map');
+  if (!mapEl) return;
+  if (!leafletMap) {
+    leafletMap = L.map('real-map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
+    }).addTo(leafletMap);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        leafletMap.setView([lat, lng], 12);
+        L.circleMarker([lat, lng], {radius:10,fillColor:'#1a5fa8',color:'#fff',weight:3,fillOpacity:1})
+          .addTo(leafletMap).bindPopup('<b>You are here</b>').openPopup();
+      });
+    }
+  }
+  mapMarkers.forEach(m => m.remove());
+  mapMarkers = [];
+  const cityCount = {};
+  donors.forEach(d => {
+    const isAv = d.available || false;
+    const base = getCityCoords(d.city || '');
+    if (!base) return;
+    const key = base.join(',');
+    cityCount[key] = (cityCount[key] || 0) + 1;
+    const off = (cityCount[key] - 1) * 0.009;
+    const coords = [base[0] + off, base[1] + off * 0.6];
+    const color = isAv ? '#C0392B' : '#999';
+    const init  = ((d.firstName||'?')[0]+(d.lastName||'?')[0]).toUpperCase();
+    const name  = (d.firstName||'') + ' ' + (d.lastName||'');
+    const phone = d.phone || 'Not added';
+    const avDot = isAv ? '<div style="position:absolute;top:-3px;right:-3px;transform:rotate(45deg);width:13px;height:13px;background:#1a8a4a;border-radius:50%;border:2px solid #fff"></div>' : '';
+    const snapIcon = L.divIcon({
+      className: '',
+      html: '<div style="display:flex;flex-direction:column;align-items:center">'
+          + '<div style="width:46px;height:46px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:'+color+';border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;position:relative">'
+          + '<div style="transform:rotate(45deg);width:34px;height:34px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-family:sans-serif;font-weight:800;font-size:12px;color:'+color+'">'+init+'</div>'+avDot+'</div>'
+          + '<div style="background:'+color+';color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;margin-top:3px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.25)">'+(d.firstName||'?')+' &middot; '+(d.bloodType||'?')+'</div>'
+          + '</div>',
+      iconSize:[90,72], iconAnchor:[45,70]
+    });
+    const marker = L.marker(coords, {icon: snapIcon}).addTo(leafletMap);
+    marker.bindPopup(
+      '<div style="font-family:sans-serif;min-width:170px;padding:4px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px">'+init+'</div>'
+      +'<div><b style="font-size:14px">'+name+'</b><br><span style="color:#C0392B;font-weight:700">'+(d.bloodType||'?')+'</span></div></div>'
+      +'<div style="font-size:12px;color:#666;margin-bottom:3px">&#128205; '+(d.city||'?')+'</div>'
+      +'<div style="font-size:12px;margin-bottom:5px">&#128222; '+phone+'</div>'
+      +'<div style="font-size:11px;font-weight:600;color:'+(isAv?'#1a8a4a':'#999')+';margin-bottom:8px">'+(isAv?'&#9989; Available now':'&#9208; Unavailable')+'</div>'
+      +(isAv?'<button onclick="openContact(\''+d.id+'\');" style="width:100%;padding:7px;background:#C0392B;color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:700;font-size:12px">Contact Donor</button>'
+            :'<button disabled style="width:100%;padding:7px;background:#eee;color:#999;border:none;border-radius:7px;font-size:12px">Unavailable</button>')
+      +'</div>'
+    );
+    mapMarkers.push(marker);
+  });
+  if (donors.length > 0) {
+    const fc = getCityCoords(donors.find(d=>d.available)?.city || donors[0].city || '');
+    if (fc) leafletMap.setView(fc, 11);
+  }
+  setTimeout(() => { if(leafletMap) leafletMap.invalidateSize(); }, 400);
+
+};
+
+function getCityCoords(city) {
+  if (!city) return null;
+  const c = city.toLowerCase();
+  const coords = {'hyderabad':[17.3850,78.4867],'secunderabad':[17.4399,78.4983],'jubilee hills':[17.4315,78.4108],'banjara hills':[17.4126,78.4483],'madhapur':[17.4416,78.3762],'kukatpally':[17.4849,78.3996],'ameerpet':[17.4375,78.4484],'punjagutta':[17.4267,78.4496],'nirmal':[19.0967,78.3375],'warangal':[17.9784,79.5941],'karimnagar':[18.4386,79.1288],'khammam':[17.2473,80.1514],'nizamabad':[18.6725,78.0941],'nalgonda':[17.0575,79.2670],'mumbai':[19.0760,72.8777],'pune':[18.5204,73.8567],'nagpur':[21.1458,79.0882],'nashik':[19.9975,73.7898],'aurangabad':[19.8762,75.3433],'solapur':[17.6599,75.9064],'delhi':[28.7041,77.1025],'new delhi':[28.6139,77.2090],'noida':[28.5355,77.3910],'gurgaon':[28.4595,77.0266],'faridabad':[28.4089,77.3178],'bangalore':[12.9716,77.5946],'bengaluru':[12.9716,77.5946],'mysore':[12.2958,76.6394],'hubli':[15.3647,75.1240],'mangalore':[12.9141,74.8560],'chennai':[13.0827,80.2707],'coimbatore':[11.0168,76.9558],'madurai':[9.9252,78.1198],'trichy':[10.7905,78.7047],'salem':[11.6643,78.1460],'kolkata':[22.5726,88.3639],'howrah':[22.5958,88.2636],'ahmedabad':[23.0225,72.5714],'surat':[21.1702,72.8311],'vadodara':[22.3072,73.1812],'rajkot':[22.3039,70.8022],'jaipur':[26.9124,75.7873],'jodhpur':[26.2389,73.0243],'udaipur':[24.5854,73.7125],'lucknow':[26.8467,80.9462],'kanpur':[26.4499,80.3319],'agra':[27.1767,78.0081],'varanasi':[25.3176,82.9739],'patna':[25.5941,85.1376],'bhubaneswar':[20.2961,85.8245],'chandigarh':[30.7333,76.7794],'ludhiana':[30.9010,75.8573],'amritsar':[31.6340,74.8723],'guwahati':[26.1445,91.7362],'thiruvananthapuram':[8.5241,76.9366],'kochi':[9.9312,76.2673],'kozhikode':[11.2588,75.7804],'bhopal':[23.2599,77.4126],'indore':[22.7196,75.8577],'raipur':[21.2514,81.6296],'dehradun':[30.3165,78.0322],'ranchi':[23.3441,85.3096],'jamshedpur':[22.8046,86.2029],'goa':[15.2993,74.1240],'panaji':[15.4909,73.8278],'jammu':[32.7266,74.8570],'srinagar':[34.0837,74.7973],'visakhapatnam':[17.6868,83.2185],'vizag':[17.6868,83.2185],'vijayawada':[16.5062,80.6480],'guntur':[16.3067,80.4365],'tirupati':[13.6288,79.4192],'nellore':[14.4426,79.9865],'hyd':[17.3850,78.4867]};
+  for (const key of Object.keys(coords)) { if (c.includes(key)) return coords[key]; }
+  return [20.5937, 78.9629];
+}
+
+const hospitalsByState = {
+  'Telangana':['Apollo Hospitals Blood Bank, Jubilee Hills','NIMS Blood Bank, Punjagutta','Yashoda Hospitals Blood Bank, Secunderabad','Care Hospitals Blood Bank, Banjara Hills','Gandhi Hospital Blood Bank, Secunderabad','Red Cross Blood Bank, Abids','Global Hospital Blood Bank, Lakdikapul','Kamineni Hospitals Blood Bank, LB Nagar'],
+  'Andhra Pradesh':['Ramesh Hospitals Blood Bank, Vijayawada','NRI Medical College Blood Bank, Guntur','SVIMS Blood Bank, Tirupati','Government General Hospital Blood Bank, Visakhapatnam','Apollo Hospitals Blood Bank, Visakhapatnam','Care Hospital Blood Bank, Visakhapatnam'],
+  'Tamil Nadu':['Government General Hospital Blood Bank, Chennai','Apollo Hospital Blood Bank, Chennai','Fortis Malar Blood Bank, Chennai','PSG Hospital Blood Bank, Coimbatore','Meenakshi Mission Blood Bank, Madurai','Christian Medical College Blood Bank, Vellore'],
+  'Karnataka':['Victoria Hospital Blood Bank, Bangalore','Manipal Hospital Blood Bank, Bangalore','Apollo BGS Blood Bank, Mysore','KMC Blood Bank, Manipal','NIMHANS Blood Bank, Bangalore','Narayana Health Blood Bank, Bangalore'],
+  'Maharashtra':['KEM Hospital Blood Bank, Mumbai','Sion Hospital Blood Bank, Mumbai','Ruby Hall Blood Bank, Pune','Sassoon Blood Bank, Pune','Orange City Blood Bank, Nagpur','Bombay Hospital Blood Bank, Mumbai'],
+  'Delhi':['AIIMS Blood Bank, New Delhi','Safdarjung Hospital Blood Bank, Delhi','Ram Manohar Lohia Blood Bank, Delhi','Sir Ganga Ram Blood Bank, Delhi','Max Hospital Blood Bank, Saket','Apollo Indraprastha Blood Bank, Delhi'],
+  'Uttar Pradesh':['SGPGI Blood Bank, Lucknow','KGMU Blood Bank, Lucknow','SN Medical College Blood Bank, Agra','BHU Blood Bank, Varanasi','Regency Hospital Blood Bank, Kanpur'],
+  'West Bengal':['SSKM Blood Bank, Kolkata','NRS Medical Blood Bank, Kolkata','Apollo Gleneagles Blood Bank, Kolkata','Medica Superspecialty Blood Bank, Kolkata','AMRI Hospital Blood Bank, Kolkata'],
+  'Gujarat':['Civil Hospital Blood Bank, Ahmedabad','VS Hospital Blood Bank, Ahmedabad','New Civil Hospital Blood Bank, Surat','Sterling Hospital Blood Bank, Ahmedabad','Zydus Hospital Blood Bank, Ahmedabad'],
+  'Rajasthan':['SMS Hospital Blood Bank, Jaipur','Narayana Hospital Blood Bank, Jaipur','Umaid Hospital Blood Bank, Jodhpur','MB Hospital Blood Bank, Udaipur'],
+  'Madhya Pradesh':['Hamidia Hospital Blood Bank, Bhopal','Bombay Hospital Blood Bank, Indore','Choithram Blood Bank, Indore','GRMC Blood Bank, Gwalior'],
+  'Bihar':['PMCH Blood Bank, Patna','IGIMS Blood Bank, Patna','NMCH Blood Bank, Patna','Magadh Medical College Blood Bank, Gaya'],
+  'Punjab':['PGIMER Blood Bank, Chandigarh','Government Medical College Blood Bank, Amritsar','Dayanand Medical College Blood Bank, Ludhiana'],
+  'Haryana':['PGIMER Blood Bank, Chandigarh','Medanta Blood Bank, Gurgaon','Fortis Memorial Blood Bank, Gurgaon'],
+  'Kerala':['Government Medical College Blood Bank, Thiruvananthapuram','Amrita Blood Bank, Kochi','KIMS Blood Bank, Thiruvananthapuram','Medical College Blood Bank, Kozhikode'],
+  'Odisha':['SCB Medical College Blood Bank, Cuttack','AIIMS Blood Bank, Bhubaneswar','Apollo Hospital Blood Bank, Bhubaneswar'],
+  'Jharkhand':['RIMS Blood Bank, Ranchi','MGM Medical College Blood Bank, Jamshedpur','Tata Main Hospital Blood Bank, Jamshedpur'],
+  'Assam':['GMCH Blood Bank, Guwahati','GNRC Hospital Blood Bank, Guwahati','Assam Medical College Blood Bank, Dibrugarh'],
+  'Uttarakhand':['AIIMS Blood Bank, Rishikesh','Doon Medical College Blood Bank, Dehradun'],
+  'Himachal Pradesh':['IGMC Blood Bank, Shimla','Zonal Hospital Blood Bank, Dharamsala'],
+  'Goa':['GMC Blood Bank, Panaji','Apollo Victor Blood Bank, Goa'],
+  'Chhattisgarh':['AIIMS Blood Bank, Raipur','Dr. BR Ambedkar Hospital Blood Bank, Raipur'],
+  'Jammu and Kashmir':['Government Medical College Blood Bank, Jammu','SKIMS Blood Bank, Srinagar'],
+  'Other':['District Government Hospital Blood Bank','Red Cross Blood Bank (local)','Private Hospital Blood Bank (local)']
+};
+
+
+</script>
+</body>
+</html>
