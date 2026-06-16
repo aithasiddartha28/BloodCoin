@@ -2,6 +2,10 @@
 
 A full-stack serverless web app that rewards blood donors with coins redeemable for real medical discounts.
 
+## 🎥 Demo
+
+https://github.com/user-attachments/assets/407ffe6b-71b2-423a-adc7-84cf95b28139
+
 ## 🌐 Live App
 👉  https://lnkd.in/gJr9rmfx
 
